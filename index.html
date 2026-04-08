@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hatif.io Caller</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #2c5282;
+      --primary-light: #3182ce;
+      --primary-dark: #1a365d;
+      --success: #276749;
+      --success-bg: #c6f6d5;
+      --danger: #c53030;
+      --danger-bg: #fed7d7;
+      --warning: #744210;
+      --warning-bg: #fefcbf;
+      --gray-50: #f7fafc;
+      --gray-100: #edf2f7;
+      --gray-200: #e2e8f0;
+      --gray-400: #a0aec0;
+      --gray-600: #718096;
+      --gray-800: #2d3748;
+      --white: #ffffff;
+      --radius: 10px;
+      --shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+      color: var(--white);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .header-logo {
+      width: 32px;
+      height: 32px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .header-subtitle {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 1px;
+    }
+
+    /* Main content */
+    .content {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+    }
+
+    /* Contact card */
+    .contact-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: opacity 0.3s;
+    }
+    .contact-avatar {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--primary-light), var(--primary));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .contact-info { flex: 1; min-width: 0; }
+    .contact-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-800);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .contact-label {
+      font-size: 11px;
+      color: var(--gray-600);
+      margin-top: 2px;
+    }
+    .contact-card.hidden { display: none; }
+
+    /* Input group */
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-600);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .phone-input-wrapper {
+      display: flex;
+      background: var(--white);
+      border: 2px solid var(--gray-200);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .phone-input-wrapper:focus-within {
+      border-color: var(--primary-light);
+      box-shadow: 0 0 0 3px rgba(49,130,206,0.15);
+    }
+    .phone-flag {
+      padding: 0 12px;
+      background: var(--gray-100);
+      display: flex;
+      align-items: center;
+      font-size: 18px;
+      border-left: 1px solid var(--gray-200);
+    }
+    input[type="tel"] {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 11px 14px;
+      font-size: 16px;
+      font-family: 'Courier New', monospace;
+      font-weight: 600;
+      color: var(--gray-800);
+      background: transparent;
+      direction: ltr;
+      text-align: left;
+    }
+    input[type="tel"]::placeholder { color: var(--gray-400); font-weight: 400; }
+
+    /* Call button */
+    .call-btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s;
+      letter-spacing: 0.3px;
+    }
+    .call-btn.idle {
+      background: linear-gradient(135deg, #38a169, #276749);
+      color: var(--white);
+      box-shadow: 0 4px 14px rgba(56,161,105,0.4);
+    }
+    .call-btn.idle:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(56,161,105,0.5);
+    }
+    .call-btn.idle:active { transform: translateY(0); }
+    .call-btn.calling {
+      background: linear-gradient(135deg, #ed8936, #c05621);
+      color: var(--white);
+      box-shadow: 0 4px 14px rgba(237,137,54,0.4);
+      cursor: not-allowed;
+    }
+    .call-btn.success {
+      background: linear-gradient(135deg, #4299e1, #2b6cb0);
+      color: var(--white);
+      cursor: default;
+    }
+    .call-btn.error {
+      background: linear-gradient(135deg, #fc8181, #c53030);
+      color: var(--white);
+    }
+    .call-btn:disabled { opacity: 0.85; }
+
+    .btn-icon { font-size: 20px; }
+    .btn-spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Status alert */
+    .status-alert {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      display: none;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .status-alert.show { display: flex; }
+    .status-alert.success { background: var(--success-bg); color: var(--success); }
+    .status-alert.error   { background: var(--danger-bg);  color: var(--danger); }
+    .status-alert.info    { background: #ebf8ff; color: #2c5282; }
+    .status-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+    /* Init state overlay */
+    .init-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--gray-50);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 100;
+    }
+    .init-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--gray-200);
+      border-top-color: var(--primary-light);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .init-text { font-size: 13px; color: var(--gray-600); }
+    .init-overlay.hidden { display: none; }
+
+    /* Footer */
+    .footer {
+      padding: 10px 16px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--gray-400);
+      border-top: 1px solid var(--gray-200);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="init-overlay" id="initOverlay">
+    <div class="init-spinner"></div>
+    <div class="init-text">جاري التهيئة...</div>
+  </div>
+
+  <div class="header">
+    <div class="header-logo">📞</div>
+    <div>
+      <div class="header-title">Hatif.io Caller</div>
+      <div class="header-subtitle">الاتصال الذكي عبر Hatif.io</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Contact card (shown when context is available) -->
+    <div class="contact-card hidden" id="contactCard">
+      <div class="contact-avatar" id="contactAvatar">?</div>
+      <div class="contact-info">
+        <div class="contact-name" id="contactName">—</div>
+        <div class="contact-label">جهة الاتصال</div>
+      </div>
+    </div>
+
+    <!-- Phone number input -->
+    <div class="input-group">
+      <div class="input-label">رقم الهاتف</div>
+      <div class="phone-input-wrapper">
+        <div class="phone-flag">🇸🇦</div>
+        <input
+          type="tel"
+          id="phoneInput"
+          placeholder="+966 5X XXX XXXX"
+          autocomplete="tel"
+          dir="ltr"
+        />
+      </div>
+    </div>
+
+    <!-- Status alert -->
+    <div class="status-alert" id="statusAlert">
+      <span class="status-icon" id="statusIcon">ℹ️</span>
+      <span id="statusText"></span>
+    </div>
+
+    <!-- Call button -->
+    <button class="call-btn idle" id="callBtn" onclick="initiateCall()">
+      <span class="btn-icon">📞</span>
+      <span id="callBtnText">بدء الاتصال</span>
+    </button>
+  </div>
+
+  <div class="footer">Powered by Hatif.io · Fusion Leap</div>
+
+  <!-- Pipedrive App Extensions SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@pipedrive/app-extensions-sdk@1/dist/pipedrive-app-extensions-sdk.js"></script>
+
+  <script>
+    const N8N_CALL_WEBHOOK = 'https://automation.fusionleap.net/webhook/pipedrive-start-call';
+
+    // Define Event and Command constants manually (safe regardless of CDN export)
+    const EVENT_VISIBILITY = 'visibility';
+    const CMD_SHOW   = 'show_floating_window';
+    const CMD_HIDE   = 'hide_floating_window';
+    const CMD_FOCUS  = 'set_focus_mode';
+    const CMD_RESIZE = 'resize';
+
+    let sdk = null;
+    let currentPhone = '';
+    let currentName = 'عميل';
+    let isCalling = false;
+
+    // ─── SDK Initialization ───────────────────────────────────────────────────
+    async function initSDK() {
+      try {
+        // Initialize the SDK - must complete within 10s or Pipedrive shows error
+        const SDKClass = window.AppExtensionsSDK;
+        if (!SDKClass) throw new Error('SDK not loaded');
+
+        sdk = await new SDKClass().initialize({ size: { width: 380, height: 460 } });
+
+        // Resize to ensure proper dimensions
+        try {
+          await sdk.execute(CMD_RESIZE, { width: 380, height: 460 });
+        } catch (_) {}
+
+        // Listen for visibility + context (phone number clicked in Pipedrive)
+        sdk.listen(EVENT_VISIBILITY, ({ is_visible, context }) => {
+          if (!is_visible) return;
+          if (context) {
+            const phone = context.phoneNumber || context.phone_number || context.phone || '';
+            const name  = context.personName  || context.person_name  || context.name  || '';
+            if (phone) fillContact(phone, name);
+          }
+        });
+
+        hideOverlay();
+      } catch (err) {
+        // Fallback: still show UI (useful during dev/testing outside Pipedrive)
+        console.warn('SDK init failed (may be outside Pipedrive):', err.message || err);
+        hideOverlay();
+      }
+    }
+
+    function hideOverlay() {
+      document.getElementById('initOverlay').classList.add('hidden');
+    }
+
+    // ─── Fill contact data ────────────────────────────────────────────────────
+    function fillContact(phone, name) {
+      currentPhone = phone;
+      currentName  = name || 'عميل';
+
+      document.getElementById('phoneInput').value = phone;
+
+      if (name) {
+        document.getElementById('contactName').textContent = name;
+        const initial = getInitial(name);
+        document.getElementById('contactAvatar').textContent = initial;
+        document.getElementById('contactCard').classList.remove('hidden');
+      }
+    }
+
+    function getInitial(name) {
+      if (!name) return '?';
+      const parts = name.trim().split(/\s+/);
+      return parts.length >= 2
+        ? (parts[0][0] + parts[1][0]).toUpperCase()
+        : parts[0][0].toUpperCase();
+    }
+
+    // ─── UI State helpers ─────────────────────────────────────────────────────
+    function setStatus(type, icon, text) {
+      const alert = document.getElementById('statusAlert');
+      alert.className = `status-alert show ${type}`;
+      document.getElementById('statusIcon').textContent = icon;
+      document.getElementById('statusText').textContent = text;
+    }
+
+    function clearStatus() {
+      document.getElementById('statusAlert').className = 'status-alert';
+    }
+
+    function setCallBtnState(state) {
+      const btn  = document.getElementById('callBtn');
+      const text = document.getElementById('callBtnText');
+      btn.className = `call-btn ${state}`;
+      btn.disabled  = state === 'calling' || state === 'success';
+
+      const states = {
+        idle:    { icon: '📞', label: 'بدء الاتصال' },
+        calling: { icon: null, label: 'جاري الاتصال...' },
+        success: { icon: '✅', label: 'تم الاتصال بنجاح' },
+        error:   { icon: '🔄', label: 'إعادة المحاولة' },
+      };
+
+      const s = states[state];
+      if (state === 'calling') {
+        btn.innerHTML = `<div class="btn-spinner"></div><span id="callBtnText">${s.label}</span>`;
+      } else {
+        btn.innerHTML = `<span class="btn-icon">${s.icon}</span><span id="callBtnText">${s.label}</span>`;
+      }
+    }
+
+    // ─── Initiate call ────────────────────────────────────────────────────────
+    async function initiateCall() {
+      if (isCalling) return;
+
+      const phone = document.getElementById('phoneInput').value.trim();
+      if (!phone) {
+        setStatus('error', '⚠️', 'الرجاء إدخال رقم الهاتف أولاً');
+        return;
+      }
+
+      // Basic validation
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length < 9) {
+        setStatus('error', '⚠️', 'رقم الهاتف قصير جداً، تحقق من الرقم');
+        return;
+      }
+
+      isCalling = true;
+      clearStatus();
+      setCallBtnState('calling');
+
+      // Lock floating window during call
+      if (sdk) {
+        try { await sdk.execute(CMD_FOCUS, { is_enabled: true }); } catch (_) {}
+      }
+
+      try {
+        const res = await fetch(N8N_CALL_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone:  phone,
+            name:   currentName,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.success !== false) {
+          setCallBtnState('success');
+          setStatus(
+            'success',
+            '✅',
+            `تم بدء الاتصال بـ ${currentName}. سيتلقى المتصل رسالة صوتية قريباً.`
+          );
+
+          // Auto-reset after 8 seconds
+          setTimeout(() => {
+            resetUI();
+          }, 8000);
+        } else {
+          throw new Error(data.error || data.message || 'خطأ غير معروف');
+        }
+      } catch (err) {
+        setCallBtnState('error');
+        setStatus('error', '❌', `فشل الاتصال: ${err.message}`);
+        isCalling = false;
+
+        if (sdk) {
+          try { await sdk.execute(CMD_FOCUS, { is_enabled: false }); } catch (_) {}
+        }
+      }
+    }
+
+    function resetUI() {
+      isCalling = false;
+      clearStatus();
+      setCallBtnState('idle');
+
+      if (sdk) {
+        try { sdk.execute(CMD_FOCUS, { is_enabled: false }); } catch (_) {}
+      }
+    }
+
+    // Allow pressing Enter to call
+    document.getElementById('phoneInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') initiateCall();
+    });
+
+    // Update currentName when phone input changes manually
+    document.getElementById('phoneInput').addEventListener('input', () => {
+      currentPhone = document.getElementById('phoneInput').value;
+      if (document.getElementById('contactCard').classList.contains('hidden')) {
+        currentName = 'عميل';
+      }
+    });
+
+    // ─── Boot ─────────────────────────────────────────────────────────────────
+    window.addEventListener('DOMContentLoaded', initSDK);
+  </script>
+</body>
+</html>
