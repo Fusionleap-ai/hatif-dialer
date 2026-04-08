@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hatif.io Caller</title>
-  <!-- Pipedrive App Extensions SDK (official UMD build) - MUST be in head -->
   <script src="https://cdn.jsdelivr.net/npm/@pipedrive/app-extensions-sdk@0/dist/index.umd.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -81,6 +80,7 @@
     .status-alert.show { display: flex; }
     .status-alert.success { background: var(--success-bg); color: var(--success); }
     .status-alert.error { background: var(--danger-bg); color: var(--danger); }
+    .status-alert.info { background: #ebf8ff; color: #2c5282; }
     .status-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
     .init-overlay {
       position: absolute; inset: 0; background: var(--gray-50);
@@ -90,11 +90,12 @@
     .init-text { font-size: 13px; color: var(--gray-600); }
     .init-overlay.hidden { display: none; }
     .footer { padding: 10px 16px; text-align: center; font-size: 11px; color: var(--gray-400); border-top: 1px solid var(--gray-200); flex-shrink: 0; }
-    #debugLog { position: fixed; bottom: 0; left: 0; right: 0; background: #1a202c; color: #68d391; font-family: monospace; font-size: 10px; padding: 6px 10px; max-height: 80px; overflow-y: auto; z-index: 9999; direction: ltr; text-align: left; }
+    .loading-phone { font-size: 12px; color: var(--primary-light); padding: 8px 0; display: none; align-items: center; gap: 6px; }
+    .loading-phone.show { display: flex; }
+    .mini-spinner { width: 14px; height: 14px; border: 2px solid var(--gray-200); border-top-color: var(--primary-light); border-radius: 50%; animation: spin 0.8s linear infinite; }
   </style>
 </head>
 <body>
-  <div id="debugLog"></div>
   <div class="init-overlay" id="initOverlay">
     <div class="init-spinner"></div>
     <div class="init-text">جاري التهيئة...</div>
@@ -120,6 +121,10 @@
         <div class="phone-flag">🇸🇦</div>
         <input type="tel" id="phoneInput" placeholder="+966 5X XXX XXXX" autocomplete="tel" dir="ltr" />
       </div>
+      <div class="loading-phone" id="loadingPhone">
+        <div class="mini-spinner"></div>
+        <span>جاري جلب الرقم من Pipedrive...</span>
+      </div>
     </div>
     <div class="status-alert" id="statusAlert">
       <span class="status-icon" id="statusIcon"></span>
@@ -133,41 +138,75 @@
   <div class="footer">Powered by Hatif.io - Fusion Leap</div>
 
   <script>
-    var dbg = document.getElementById('debugLog');
-    function dlog(m) { dbg.textContent += m + '\n'; dbg.scrollTop = dbg.scrollHeight; }
-
-    dlog('1. Script start. SDK type: ' + typeof window.AppExtensionsSDK);
-    dlog('2. URL id param: ' + new URLSearchParams(location.search).get('id'));
-
     var N8N_CALL_WEBHOOK = 'https://automation.fusionleap.net/webhook/pipedrive-start-call';
+    var N8N_GET_PHONE    = 'https://automation.fusionleap.net/webhook/pipedrive-get-phone';
+
     var sdk = null;
     var currentPhone = '';
-    var currentName = 'unknown';
+    var currentName  = '';
     var isCalling = false;
+    var lastPersonId = null;
 
     (async function() {
       try {
-        dlog('3. Starting SDK init...');
         var SDKClass = window.AppExtensionsSDK;
-        if (!SDKClass) { dlog('FATAL: SDK not on window'); return; }
-
-        sdk = await new SDKClass().initialize({ size: { height: 400 } });
-        dlog('4. SDK OK!');
+        if (!SDKClass) throw new Error('SDK not loaded');
+        sdk = await new SDKClass().initialize({ size: { height: 460 } });
 
         sdk.listen('visibility', function(payload) {
-          dlog('Event: ' + JSON.stringify(payload).substring(0, 200));
+          var data = (payload && payload.data) ? payload.data : payload;
+          if (!data) return;
+          var isVisible = data.is_visible !== undefined ? data.is_visible : true;
+          if (!isVisible) return;
+
+          var ctx = data.context || {};
+          var related = ctx.relatedIds || {};
+
+          var phone = ctx.phoneNumber || ctx.phone_number || ctx.phone || '';
+          var name  = ctx.personName  || ctx.person_name  || ctx.name  || '';
+          var personId = related.personId || ctx.personId || null;
+
+          if (phone) {
+            fillContact(phone, name);
+          } else if (personId && personId !== lastPersonId) {
+            lastPersonId = personId;
+            fetchPhoneFromPipedrive(personId);
+          }
         });
 
         document.getElementById('initOverlay').classList.add('hidden');
-        dlog('5. Ready');
       } catch (e) {
-        dlog('ERR: ' + e.message);
+        console.warn('SDK init:', e);
         document.getElementById('initOverlay').classList.add('hidden');
       }
     })();
 
-    document.getElementById('callBtn').addEventListener('click', function() { initiateCall(); });
-    document.getElementById('phoneInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') initiateCall(); });
+    async function fetchPhoneFromPipedrive(personId) {
+      document.getElementById('loadingPhone').classList.add('show');
+      try {
+        var res = await fetch(N8N_GET_PHONE + '?personId=' + personId);
+        var data = await res.json();
+        if (data.phone) {
+          fillContact(data.phone, data.name || '');
+        }
+      } catch (e) {
+        console.warn('Failed to fetch phone:', e);
+      }
+      document.getElementById('loadingPhone').classList.remove('show');
+    }
+
+    function fillContact(phone, name) {
+      currentPhone = phone;
+      currentName  = name || '';
+      document.getElementById('phoneInput').value = phone;
+      if (name) {
+        document.getElementById('contactName').textContent = name;
+        var parts = name.trim().split(/\s+/);
+        document.getElementById('contactAvatar').textContent =
+          parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : parts[0][0].toUpperCase();
+        document.getElementById('contactCard').classList.remove('hidden');
+      }
+    }
 
     function setStatus(type, icon, text) {
       var el = document.getElementById('statusAlert');
@@ -176,42 +215,68 @@
       document.getElementById('statusText').textContent = text;
     }
 
+    function clearStatus() {
+      document.getElementById('statusAlert').className = 'status-alert';
+    }
+
     function setBtn(state, label) {
       var btn = document.getElementById('callBtn');
       btn.className = 'call-btn ' + state;
       btn.disabled = (state === 'calling' || state === 'success');
-      document.getElementById('callBtnText').textContent = label;
+      if (state === 'calling') {
+        btn.innerHTML = '<div class="btn-spinner"></div><span id="callBtnText">' + label + '</span>';
+      } else {
+        var icons = { idle: '📞', success: '✅', error: '🔄' };
+        btn.innerHTML = '<span class="btn-icon">' + (icons[state] || '📞') + '</span><span id="callBtnText">' + label + '</span>';
+      }
     }
 
     async function initiateCall() {
       if (isCalling) return;
       var phone = document.getElementById('phoneInput').value.trim();
-      if (!phone) { setStatus('error', '', 'Enter phone number'); return; }
+      if (!phone) { setStatus('error', '⚠️', 'الرجاء إدخال رقم الهاتف أولاً'); return; }
+      if (phone.replace(/\D/g, '').length < 9) { setStatus('error', '⚠️', 'رقم الهاتف قصير جداً'); return; }
 
       isCalling = true;
-      setBtn('calling', 'Calling...');
-      document.getElementById('statusAlert').className = 'status-alert';
+      clearStatus();
+      setBtn('calling', 'جاري الاتصال...');
+
+      if (sdk) { try { await sdk.execute('set_focus_mode', { is_enabled: true }); } catch (e) {} }
 
       try {
         var res = await fetch(N8N_CALL_WEBHOOK, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: phone, name: currentName }),
+          body: JSON.stringify({ phone: phone, name: currentName || phone }),
         });
         var data = await res.json().catch(function() { return {}; });
         if (res.ok && data.success !== false) {
-          setBtn('success', 'Call started!');
-          setStatus('success', '', 'Call initiated to ' + phone);
-          setTimeout(function() { isCalling = false; setBtn('idle', 'Start Call'); document.getElementById('statusAlert').className = 'status-alert'; }, 8000);
+          setBtn('success', 'تم الاتصال بنجاح');
+          setStatus('success', '✅', 'تم بدء الاتصال. سيتلقى المتصل رسالة صوتية قريباً.');
+          setTimeout(resetUI, 8000);
         } else {
-          throw new Error(data.error || data.message || 'Unknown error');
+          throw new Error(data.error || data.message || 'خطأ غير معروف');
         }
       } catch (e) {
-        setBtn('error', 'Retry');
-        setStatus('error', '', 'Failed: ' + e.message);
+        setBtn('error', 'إعادة المحاولة');
+        setStatus('error', '❌', 'فشل الاتصال: ' + e.message);
         isCalling = false;
+        if (sdk) { try { await sdk.execute('set_focus_mode', { is_enabled: false }); } catch (x) {} }
       }
     }
+
+    function resetUI() {
+      isCalling = false;
+      clearStatus();
+      setBtn('idle', 'بدء الاتصال');
+      if (sdk) { try { sdk.execute('set_focus_mode', { is_enabled: false }); } catch (e) {} }
+    }
+
+    document.getElementById('callBtn').addEventListener('click', function() { initiateCall(); });
+    document.getElementById('phoneInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') initiateCall(); });
+    document.getElementById('phoneInput').addEventListener('input', function() {
+      currentPhone = document.getElementById('phoneInput').value;
+    });
   </script>
 </body>
 </html>
